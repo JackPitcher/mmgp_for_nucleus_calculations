@@ -18,7 +18,9 @@ class MultiTaskGaussianProcess:
         self.model = None
 
     def create_model(self, x, y):
-        model = gpf.models.VGP((x, y), kernel=self.kernel, likelihood=self.likelihood,
+        model = gpf.models.VGP((x, y),
+                               kernel=self.kernel,
+                               likelihood=self.likelihood,
                                num_latent_gps=1)
         return model
 
