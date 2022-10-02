@@ -1,12 +1,10 @@
-import gpflow as gpf
 import tensorflow as tf
-import tensorflow_probability as tfp
 import numpy as np
 from scipy.stats import qmc
 import matplotlib.pyplot as plt
-from model.multi_task_gaussian_process import MultiTaskGaussianProcess
-from model.difference_model import DifferenceModel
-from model.model_trainer import ModelTrainer
+from models.model_trainer import ModelTrainer
+
+import os
 
 
 def fh1(x):
@@ -36,32 +34,82 @@ def fl3(x):
 fh = [fh1, fh2, fh3]
 fl = [fl1, fl2, fl3]
 
-x_test = np.linspace(0, 1, 16)
+num_lo_fi = 100
+num_hi_fi = 6
 
 sampler = qmc.LatinHypercube(d=1)
-sample_hf = sampler.random(n=6).transpose()[0]
-sample_lf = sampler.random(n=10).transpose()[0]
-sample_lf = np.concatenate((sample_hf, sample_lf))
+sample_hf = sampler.random(n=num_hi_fi).transpose()[0]
+sample_lf = sampler.random(n=num_lo_fi).transpose()[0]
 
-train_y_hf = np.stack([fh1(sample_hf), fh2(sample_hf), fh3(sample_hf)], -1)
-train_y_lf = np.stack([fl1(sample_lf), fl2(sample_lf), fl3(sample_lf)], -1)
+xl = sample_lf.reshape(sample_lf.shape[0], 1)
+xh = sample_hf.reshape(sample_hf.shape[0], 1)
 
-# sample_lf = tf.convert_to_tensor(np.transpose(np.vstack([sample_lf, sample_lf, sample_lf])))
-# sample_hf = tf.convert_to_tensor(np.transpose(np.vstack([sample_hf, sample_hf, sample_hf])))
-# train_y_hf = tf.convert_to_tensor(train_y_hf)
-# train_y_lf = tf.convert_to_tensor(train_y_lf)
+X = np.vstack((
+        np.hstack((xl, np.zeros_like(xl), np.zeros_like(xl))),
+        np.hstack((xl, np.ones_like(xl), np.zeros_like(xl))),
+        np.hstack((xl, np.ones_like(xl) * 2, np.zeros_like(xl))),
+        np.hstack((xh, np.zeros_like(xh), np.ones_like(xh))),
+        np.hstack((xh, np.ones_like(xh), np.ones_like(xh))),
+        np.hstack((xh, np.ones_like(xh) * 2, np.ones_like(xh)))
+))
 
-tf.config.run_functions_eagerly(True)
-trainer = ModelTrainer(model_name="multi-task-gp", optimizer_name="scipy", X=sample_lf, Y=train_y_lf)
+Y = np.vstack((
+        np.hstack((fl1(xl), np.zeros_like(xl), np.zeros_like(xl))),
+        np.hstack((fl2(xl), np.ones_like(xl), np.zeros_like(xl))),
+        np.hstack((fl3(xl), np.ones_like(xl) * 2, np.zeros_like(xl))),
+        np.hstack((fh1(xh), np.zeros_like(xh), np.ones_like(xh))),
+        np.hstack((fh2(xh), np.ones_like(xh), np.ones_like(xh))),
+        np.hstack((fh3(xh), np.ones_like(xh) * 2, np.ones_like(xh)))
+))
+
+model_name = 'multi-fidelity-gp'
+base_kernel = 'NeuralNetwork'
+likelihood_name = 'Gaussian'
+# tf.config.run_functions_eagerly(True)  # currently there's a bug where this must be true for tf.gather_nd to work
+
+trainer = ModelTrainer(
+    model_name=model_name,
+    optimizer_name='scipy',
+    kernel_names=[base_kernel, 'Coregion'],
+    likelihood_name=likelihood_name,
+    X=X,
+    Y=Y,
+    num_outputs=3
+)
 trainer.train_model()
 
-mean, variance = trainer.predict(x_test)
-print(mean, variance)
 
-# diff = DifferenceModel(sample_hf, sample_lf, train_y_lf, train_y_hf)
-# losses = diff.train()
-# print(losses)
+def plot_gp(x, mu, var, color, label):
+    plt.plot(x, mu, color=color, lw=2, label=label)
+    plt.fill_between(x[:, 0],
+                     (mu - 2 * np.sqrt(np.abs(var)))[:, 0],
+                     (mu + 2 * np.sqrt(np.abs(var)))[:, 0],
+                     color=color, alpha=0.4)
 
-# mtgp = MultiTaskGaussianProcess(output_dim=6, rank=3)
-# mtgp.train(sample_lf, train_y_lf)
-# model = mtgp.get_model()
+
+def plot(m):
+    plt.figure(figsize=(8, 4))
+    xtest = np.linspace(0, 1, 100)[:, None]
+    line, = plt.plot(sample_hf, fh1(sample_hf), 'x', mew=2)
+    mu, var = m.predict(np.hstack((xtest, np.zeros_like(xtest))))
+    plot_gp(xtest, mu, var, line.get_color(), 'Y1')
+    plt.plot(xtest, fh1(xtest), label="Actual Y1")
+
+    line, = plt.plot(sample_hf, fh2(sample_hf), 'x', mew=2)
+    mu, var = m.predict(np.hstack((xtest, np.ones_like(xtest))))
+    plot_gp(xtest, mu, var, line.get_color(), 'Y2')
+    plt.plot(xtest, fh2(xtest), label="Actual Y2")
+
+    line, = plt.plot(sample_hf, fh3(sample_hf), 'x', mew=2)
+    mu, var = m.predict(np.hstack((xtest, np.ones_like(xtest) * 2)))
+    plot_gp(xtest, mu, var, line.get_color(), 'Y3')
+    plt.plot(xtest, fh3(xtest), label="Actual Y3")
+
+    plt.legend()
+    path = f"images/{model_name}/{base_kernel}/{likelihood_name}"
+    if not os.path.isdir(path):
+        os.makedirs(path)
+    plt.savefig(f"{path}/{len(sample_hf)}_{len(sample_lf)}")
+
+
+plot(trainer)

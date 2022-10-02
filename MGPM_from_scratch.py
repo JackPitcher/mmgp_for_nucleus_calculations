@@ -23,10 +23,10 @@ def is_pos_def(x):
 
 class MGPT:
     """A Gaussian Process class for creating and exploiting
-  a Gaussian Process model for multiple tasks"""
+  a Gaussian Process models for multiple tasks"""
 
     def __init__(self, num_tasks, method='adam'):
-        """Initialize a Gaussian Process model
+        """Initialize a Gaussian Process models
     
     Input
     ------
@@ -189,7 +189,7 @@ class MGPT:
         return LnLike
 
     def fit(self, X, y, **params):
-        """GP model training
+        """GP models training
     
     Input
     -----
@@ -213,7 +213,7 @@ class MGPT:
             self.args, score = self.jade(self.args, bounds=self.bounds, **params)
 
     def predict(self, X_test):
-        """GP model predicting
+        """GP models predicting
     
     Input
     -----
@@ -417,7 +417,7 @@ class DifferenceModel(MGPT):
         return LnLike
 
     def fit(self, X, yl, yh, sigma_l, **params):
-        """GP model training
+        """GP models training
     
     Input
     -----
@@ -444,7 +444,7 @@ class DifferenceModel(MGPT):
             self.args, score = super().jade(self.args, bounds=self.bounds, **params)
 
     def predict(self, X_test):
-        """GP model predicting
+        """GP models predicting
     
     Input
     -----
@@ -581,15 +581,15 @@ class MMGP():
 
     def fit_lf(self, Xl, yl, **params):
         self.Xl, self.yl = Xl, yl
-        print("Fitting low-fidelity model")
+        print("Fitting low-fidelity models")
         self.mgpt.fit(Xl, yl, **params)
-        print("Done fitting low-fidelity model.")
+        print("Done fitting low-fidelity models.")
 
     def fit_diff(self, Xh, yh, **params):
         self.Xh = Xh
         yl_xh = self.yl[:self.Xh.shape[0], :]
         _, sigma_l, _, _ = self.mgpt.get_args()
-        print("Fitting difference model.")
+        print("Fitting difference models.")
         self.diff.fit(Xh, yl_xh, yh, sigma_l, **params)
         index_nan_h = jnp.argwhere(jnp.isnan(yh).any(axis=1))
         if index_nan_h.size != 0:
@@ -603,7 +603,7 @@ class MMGP():
             mask = mask.at[index_nan_l].set(False)
             yl = self.yl[mask, :]
         self.y = jnp.concatenate((yl, yh), axis=0)
-        print("Done fitting difference model.")
+        print("Done fitting difference models.")
 
     def predict(self, X_test):
         Xl = self.mgpt.X
