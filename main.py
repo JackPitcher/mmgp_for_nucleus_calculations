@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import qmc
 import matplotlib.pyplot as plt
 from models.model_trainer import ModelTrainer
+from models.multi_fidelity_deep_gp import MultiFidelityDeepGPTrainer as DeepTrainer
 
 import os
 
@@ -34,7 +35,7 @@ def fl3(x):
 fh = [fh1, fh2, fh3]
 fl = [fl1, fl2, fl3]
 
-num_lo_fi = 100
+num_lo_fi = 10
 num_hi_fi = 6
 
 sampler = qmc.LatinHypercube(d=1)
@@ -62,21 +63,35 @@ Y = np.vstack((
         np.hstack((fh3(xh), np.ones_like(xh) * 2, np.ones_like(xh)))
 ))
 
-model_name = 'multi-fidelity-gp'
-base_kernel = 'NeuralNetwork'
+model_name = 'DGP'
+base_kernel = 'RBF'
 likelihood_name = 'Gaussian'
-# tf.config.run_functions_eagerly(True)  # currently there's a bug where this must be true for tf.gather_nd to work
 
-trainer = ModelTrainer(
-    model_name=model_name,
+# trainer = ModelTrainer(
+#     data=(X, Y),
+#     optimizer_name='scipy',
+#     num_outputs=3
+# )
+# trainer.construct_model(
+#     model_names=model_name,
+#     base_kernel=base_kernel,
+#     likelihood_name=likelihood_name
+# )
+# trainer.train_model()
+
+deep_trainer = DeepTrainer(
+    data=(X, Y),
     optimizer_name='scipy',
-    kernel_names=[base_kernel, 'Coregion'],
-    likelihood_name=likelihood_name,
-    X=X,
-    Y=Y,
     num_outputs=3
 )
-trainer.train_model()
+
+deep_trainer.construct_model(
+    model_names=['VGP', 'VGP'],
+    base_kernel=base_kernel,
+    likelihood_name=likelihood_name
+)
+
+deep_trainer.train_deep_model()
 
 
 def plot_gp(x, mu, var, color, label):
@@ -112,4 +127,4 @@ def plot(m):
     plt.savefig(f"{path}/{len(sample_hf)}_{len(sample_lf)}")
 
 
-plot(trainer)
+plot(deep_trainer)

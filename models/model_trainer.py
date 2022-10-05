@@ -17,18 +17,26 @@ class ModelTrainer:
     VALID_KERNEL_NAMES = ['RBF', 'Matern12', 'Matern32', 'Matern52', 'ArcCosine', 'Coregion', 'White', 'NeuralNetwork']
     VALID_LIKELIHOOD_NAMES = ['Gaussian', 'Exponential', 'StudentT', 'Gamma', 'Beta']
 
-    def __init__(self, model_name, optimizer_name, kernel_names, likelihood_name, X, Y, num_outputs):
-        self.num_data, self.num_dim = X.shape
+    def __init__(self, data, optimizer_name, num_outputs):
+        X, Y = data
+        self.num_dim = X.shape[1] - 2  # number of columns minus 2 for label columns
         self.num_outputs = num_outputs  # number of outputs
-
-        self.data = (X, Y)
-
-        self.kernel = gpf.kernels.Product([self.get_kernel(kern, i) for i, kern in enumerate(kernel_names)])
-        self.likelihood = gpf.likelihoods.SwitchedLikelihood(
-            [self.get_likelihood(likelihood_name) for _ in range(self.num_outputs)])
+        self.data = data
+        self.num_layers = int(tf.reduce_max(X[:, -1])) + 1
 
         self.optimizer = self.get_optimizer(optimizer_name)
-        self.model = self.get_model(model_name)
+
+        self.model = None
+
+    def construct_model(self, model_names, base_kernel, likelihood_name):
+        kernel = self.get_kernel(base_kernel)
+        likelihood = gpf.likelihoods.SwitchedLikelihood(
+            [self.get_likelihood(likelihood_name) for _ in range(self.num_outputs)])
+
+        self.model = self.get_model(model_names,
+                                    kernel=kernel,
+                                    likelihood=likelihood,
+                                    data=self.data)
 
     def get_likelihood(self, likelihood_name: str) -> gpf.likelihoods.ScalarLikelihood:
         if isinstance(likelihood_name, gpf.likelihoods.ScalarLikelihood):
@@ -46,47 +54,45 @@ class ModelTrainer:
         raise Exception(
             f"Please enter a valid likelihood name. {likelihood_name} is not in {self.VALID_LIKELIHOOD_NAMES}.")
 
-    def get_kernel(self, kernel_name: str, i: int) -> gpf.kernels.Kernel:
+    def get_kernel(self, kernel_name: str) -> gpf.kernels.Kernel:
+        coreg = gpf.kernels.Coregion(output_dim=self.num_outputs, rank=self.num_dim, active_dims=[self.num_dim])
+        coreg.W = np.random.rand(self.num_outputs, self.num_dim)
         if isinstance(kernel_name, gpf.kernels.Kernel):
             return kernel_name
         if kernel_name == 'RBF':
-            return gpf.kernels.RBF(active_dims=[0])
+            return gpf.kernels.RBF(active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'Matern12':
-            return gpf.kernels.Matern12(active_dims=[0])
+            return gpf.kernels.Matern12(active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'Matern32':
-            return gpf.kernels.Matern32(active_dims=[0])
+            return gpf.kernels.Matern32(active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'Matern52':
-            return gpf.kernels.Matern52(active_dims=[0])
+            return gpf.kernels.Matern52(active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'ArcCosine':
-            return gpf.kernels.ArcCosine(active_dims=[0])
+            return gpf.kernels.ArcCosine(active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'NeuralNetwork':
-            return NeuralNetKernel(base_kernel=gpf.kernels.RBF(), active_dims=[0])
-        if kernel_name == 'Coregion':
-            kernel = gpf.kernels.Coregion(output_dim=self.num_outputs, rank=self.num_dim, active_dims=[1])
-            kernel.W = np.random.rand(self.num_outputs, self.num_dim)
-            return kernel
+            return NeuralNetKernel(base_kernel=gpf.kernels.RBF(), active_dims=list(range(self.num_layers - 1))) * coreg
         if kernel_name == 'White':
             return gpf.kernels.White()
         raise Exception(
             f"Please make sure all kernels are valid. {kernel_name} is not one of {self.VALID_KERNEL_NAMES}.")
 
-    def get_model(self, model_name) -> gpf.models.GPModel:
+    def get_model(self, model_name, kernel, likelihood, data) -> gpf.models.GPModel:
         if isinstance(model_name, gpf.models.GPModel):
             return model_name
         if model_name == 'multi-fidelity-gp':
-            return MultiFidelityGP(self.data, kernel=self.kernel, likelihood=self.likelihood, num_outputs=3)
+            return MultiFidelityGP(data, kernel=kernel, likelihood=likelihood, num_outputs=3)
         if model_name == 'multi-task-gp':
-            return MultiTaskGP(self.data, kernel=self.kernel, likelihood=self.likelihood, num_outputs=self.num_outputs)
+            return MultiTaskGP(data, kernel=kernel, likelihood=likelihood, num_outputs=self.num_outputs)
         if model_name == 'VGP':
-            return gpf.models.VGP(self.data, kernel=self.kernel, likelihood=self.likelihood,
+            return gpf.models.VGP(data, kernel=kernel, likelihood=likelihood,
                                   num_latent_gps=1)
         if model_name == 'GPR':
-            return gpf.models.GPR(self.data, kernel=self.kernel)
+            return gpf.models.GPR(data, kernel=kernel)
         if model_name == 'GPMC':
-            return gpf.models.GPMC(self.data, kernel=self.kernel, likelihood=self.likelihood, num_latent_gps=1)
+            return gpf.models.GPMC(data, kernel=kernel, likelihood=likelihood, num_latent_gps=1)
         if model_name == 'difference':
-            return DiffModel(self.data, kernel=self.kernel, likelihood=self.likelihood, num_outputs=self.num_outputs)
-        raise Exception(f"Please enter a valid models name: one of {self.VALID_MODEL_NAMES}")
+            return DiffModel(data, kernel=kernel, likelihood=likelihood, num_outputs=self.num_outputs)
+        raise Exception(f"Please enter a valid models name: one of {self.VALID_MODEL_NAMES}.")
 
     def get_optimizer(self, optimizer_name):
         if optimizer_name == 'scipy':
@@ -95,11 +101,13 @@ class ModelTrainer:
             return tf.optimizers.Adam()
         raise Exception(f"Please enter a valid optimizer name: one of {self.VALID_OPTIMIZERS}")
 
-    def train_model(self, disp=False):
+    def train_model(self, model=None, disp=False):
+        if model is None:
+            model = self.model
         if isinstance(self.optimizer, gpf.optimizers.Scipy):
             # see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html for information
-            self.optimizer.minimize(self.model.training_loss,
-                                    variables=self.model.trainable_variables,
+            self.optimizer.minimize(model.training_loss,
+                                    variables=model.trainable_variables,
                                     options=dict(disp=disp),
                                     method="L-BFGS-B")
             tf.print("Done training models!")
