@@ -104,9 +104,9 @@ class MultiFidelityDeepGPTrainer(ModelTrainer):
         :return: A list of kernels, one for each layer past the first
         """
         kernels = []
-        range_dim = list(range(self.num_dim - 1))
+        range_dim = list(range(self.num_dim))
         for i in range(self.num_layers - 1):
-            coreg = gpf.kernels.Coregion(output_dim=self.num_outputs, rank=self.num_dim, active_dims=[self.num_dim])
+            coreg = gpf.kernels.Coregion(output_dim=self.num_outputs, rank=self.num_outputs, active_dims=[self.num_dim])
             coreg.W = np.random.rand(self.num_outputs, self.num_dim)
             kernels.append((self.get_kernel(kernel_names[0], active_dims=[self.num_dim + 1]) *
                            (self.get_kernel(kernel_names[1], active_dims=range_dim)

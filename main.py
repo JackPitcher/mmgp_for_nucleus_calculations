@@ -115,7 +115,7 @@ def plot_real_data(trainer, X_test):
     path = f"images/{model_name}/{base_model}/{base_kernels[0]}"
     if not os.path.isdir(path):
         os.makedirs(path)
-    plt.savefig(f"{path}/real_{n_dims}_{num_hf_data}_{seed}_{0}")
+    plt.savefig(f"{path}/real_{n_dims}_{num_hf_data}_{seed}_{2}")
 
 
 plot_real_data(deep_trainer, X_test)
