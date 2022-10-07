@@ -1,130 +1,123 @@
-import tensorflow as tf
 import numpy as np
-from scipy.stats import qmc
 import matplotlib.pyplot as plt
 from models.model_trainer import ModelTrainer
 from models.multi_fidelity_deep_gp import MultiFidelityDeepGPTrainer as DeepTrainer
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 import os
 
+df = pd.read_csv('34Samples_dataset.csv')
 
-def fh1(x):
-    return np.power(6 * x - 2, 2) * np.sin(12 * x - 4) + 10
+seed = 1
+num_hf_data = 12
+np.random.seed(seed)
+indices = np.random.choice(range(df.shape[0]), size=num_hf_data, replace=False)
+test_indices = [i for i in range(df.shape[0]) if i not in indices]
 
+x = df.iloc[:, 1:18]
+y = df.iloc[:, 18:24]
 
-def fh2(x):
-    return 1.5 * (x + 2.5) * np.sqrt(fh1(x))
+x_train = x.iloc[indices, :]
+y_train = y.iloc[indices, :]
+x_test = x.iloc[test_indices, :]
+y_test = y.iloc[test_indices, :]
 
-
-def fh3(x):
-    return 5 * x * x * np.sin(12 ** x)
-
-
-def fl1(x):
-    return 2 * (x + 2) * np.sqrt(fh1(x) - 1.3 * (np.power(6 * x - 2, 2) - 6 * x))
-
-
-def fl2(x):
-    return np.power(6 * x - 2, 2) * np.sin(8 * x - 4) + 10 - (np.power(6 * x - 2, 2) - 6 * x)
-
-
-def fl3(x):
-    return fh3(x) + (x * x * x * np.sin(3 * x - 0.5)) + 4 * np.cos(2 * x)
-
-
-fh = [fh1, fh2, fh3]
-fl = [fl1, fl2, fl3]
-
-num_lo_fi = 10
-num_hi_fi = 6
-
-sampler = qmc.LatinHypercube(d=1)
-sample_hf = sampler.random(n=num_hi_fi).transpose()[0]
-sample_lf = sampler.random(n=num_lo_fi).transpose()[0]
-
-xl = sample_lf.reshape(sample_lf.shape[0], 1)
-xh = sample_hf.reshape(sample_hf.shape[0], 1)
-
-X = np.vstack((
-        np.hstack((xl, np.zeros_like(xl), np.zeros_like(xl))),
-        np.hstack((xl, np.ones_like(xl), np.zeros_like(xl))),
-        np.hstack((xl, np.ones_like(xl) * 2, np.zeros_like(xl))),
-        np.hstack((xh, np.zeros_like(xh), np.ones_like(xh))),
-        np.hstack((xh, np.ones_like(xh), np.ones_like(xh))),
-        np.hstack((xh, np.ones_like(xh) * 2, np.ones_like(xh)))
+X_train = np.vstack((
+        np.hstack((x, np.zeros((x.shape[0], 1)), np.zeros((x.shape[0], 1)))),
+        np.hstack((x, np.ones((x.shape[0], 1)), np.zeros((x.shape[0], 1)))),
+        np.hstack((x, np.ones((x.shape[0], 1)) * 2, np.zeros((x.shape[0], 1)))),
+        np.hstack((x_train, np.zeros((x_train.shape[0], 1)), np.ones((x_train.shape[0], 1)))),
+        np.hstack((x_train, np.ones((x_train.shape[0], 1)), np.ones((x_train.shape[0], 1)))),
+        np.hstack((x_train, np.ones((x_train.shape[0], 1)) * 2, np.ones((x_train.shape[0], 1))))
 ))
 
-Y = np.vstack((
-        np.hstack((fl1(xl), np.zeros_like(xl), np.zeros_like(xl))),
-        np.hstack((fl2(xl), np.ones_like(xl), np.zeros_like(xl))),
-        np.hstack((fl3(xl), np.ones_like(xl) * 2, np.zeros_like(xl))),
-        np.hstack((fh1(xh), np.zeros_like(xh), np.ones_like(xh))),
-        np.hstack((fh2(xh), np.ones_like(xh), np.ones_like(xh))),
-        np.hstack((fh3(xh), np.ones_like(xh) * 2, np.ones_like(xh)))
+X_test = np.vstack((
+        np.hstack((x_test, np.zeros((x_test.shape[0], 1)))),
+        np.hstack((x_test, np.ones((x_test.shape[0], 1)))),
+        np.hstack((x_test, np.ones((x_test.shape[0], 1)) * 2))
 ))
+
+Y_train = np.vstack((
+        np.hstack((np.reshape(np.array(y["GT_HF"]), (y.shape[0], 1)), np.zeros((y.shape[0], 1)), np.zeros((y.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y["F_HF"]), (y.shape[0], 1)), np.ones((y.shape[0], 1)), np.zeros((y.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y["CT_HF"]), (y.shape[0], 1)), np.ones((y.shape[0], 1)) * 2, np.zeros((y.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y_train["GT"]), (y_train.shape[0], 1)), np.zeros((y_train.shape[0], 1)), np.ones((y_train.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y_train["F"]), (y_train.shape[0], 1)), np.ones((y_train.shape[0], 1)), np.ones((y_train.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y_train["CT"]), (y_train.shape[0], 1)), np.ones((y_train.shape[0], 1)) * 2, np.ones((y_train.shape[0], 1))))
+))
+
+Y_test = np.vstack((
+        np.hstack((np.reshape(np.array(y_test["GT"]), (y_test.shape[0], 1)), np.zeros((y_test.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y_test["F"]), (y_test.shape[0], 1)), np.ones((y_test.shape[0], 1)))),
+        np.hstack((np.reshape(np.array(y_test["CT"]), (y_test.shape[0], 1)), np.ones((y_test.shape[0], 1)) * 2))
+))
+
+#Perform PCA to reduce dimensionality of the parameter space
+scaler = StandardScaler()
+scaler.fit(X_train[:, :-2])
+x_train_data = scaler.transform(X_train[:, :-2])
+x_test_data = scaler.transform(X_test[:, :-1])
+
+n_dims = 7
+
+if n_dims < x_train_data.shape[1]:
+    pca = PCA(n_components=n_dims)
+    pca.fit(x_train_data)
+    x_train_data = pca.transform(x_train_data)
+    x_test_data = pca.transform(x_test_data)
+else:
+    n_dims = x_train_data.shape[1]
+
+X_train = np.hstack((x_train_data, X_train[:, -2:]))
+X_test = np.hstack((x_test_data, X_test[:, -1:]))
 
 model_name = 'DGP'
-base_kernel = 'RBF'
+base_model = 'VGP'
+base_kernels = ['ArcCosine', 'ArcCosine', 'Linear', 'RBF']
 likelihood_name = 'Gaussian'
 
-# trainer = ModelTrainer(
-#     data=(X, Y),
-#     optimizer_name='scipy',
-#     num_outputs=3
-# )
-# trainer.construct_model(
-#     model_names=model_name,
-#     base_kernel=base_kernel,
-#     likelihood_name=likelihood_name
-# )
-# trainer.train_model()
-
 deep_trainer = DeepTrainer(
-    data=(X, Y),
+    data=(X_train, Y_train),
     optimizer_name='scipy',
     num_outputs=3
 )
 
 deep_trainer.construct_model(
-    model_names=['VGP', 'VGP'],
-    base_kernel=base_kernel,
+    model_names=[base_model, base_model],
+    base_kernels=base_kernels,
     likelihood_name=likelihood_name
 )
 
 deep_trainer.train_deep_model()
 
 
-def plot_gp(x, mu, var, color, label):
-    plt.plot(x, mu, color=color, lw=2, label=label)
-    plt.fill_between(x[:, 0],
-                     (mu - 2 * np.sqrt(np.abs(var)))[:, 0],
-                     (mu + 2 * np.sqrt(np.abs(var)))[:, 0],
-                     color=color, alpha=0.4)
+def plot_real_data(trainer, X_test):
+    mean, var = trainer.predict(X_test, fidelity=None)
+    mean_reshaped = np.reshape(mean, (mean.shape[0] // 3, 3), "F")
+    var_reshaped = np.reshape(var, (var.shape[0] // 3, 3), "F")
 
+    tasks = ["GT", "F", "CT"]
+    ntasks = len(tasks)
+    f, axes = plt.subplots(1, ntasks, figsize=(18, 4))
+    xplot = np.arange(x.shape[0])
 
-def plot(m):
-    plt.figure(figsize=(8, 4))
-    xtest = np.linspace(0, 1, 100)[:, None]
-    line, = plt.plot(sample_hf, fh1(sample_hf), 'x', mew=2)
-    mu, var = m.predict(np.hstack((xtest, np.zeros_like(xtest))))
-    plot_gp(xtest, mu, var, line.get_color(), 'Y1')
-    plt.plot(xtest, fh1(xtest), label="Actual Y1")
-
-    line, = plt.plot(sample_hf, fh2(sample_hf), 'x', mew=2)
-    mu, var = m.predict(np.hstack((xtest, np.ones_like(xtest))))
-    plot_gp(xtest, mu, var, line.get_color(), 'Y2')
-    plt.plot(xtest, fh2(xtest), label="Actual Y2")
-
-    line, = plt.plot(sample_hf, fh3(sample_hf), 'x', mew=2)
-    mu, var = m.predict(np.hstack((xtest, np.ones_like(xtest) * 2)))
-    plot_gp(xtest, mu, var, line.get_color(), 'Y3')
-    plt.plot(xtest, fh3(xtest), label="Actual Y3")
-
-    plt.legend()
-    path = f"images/{model_name}/{base_kernel}/{likelihood_name}"
+    for i in range(len(axes)):
+        # Computed points as blue dots
+        axes[i].scatter(xplot[test_indices], y_test[tasks[i]], c='b')
+        # Plot training data as red dots
+        axes[i].scatter(xplot[indices], y_train[tasks[i]], c='r')
+        # Shade in confidence
+        axes[i].errorbar(xplot[test_indices], mean_reshaped[:, i], yerr=2 * np.sqrt(np.abs(var_reshaped[:, i])), linestyle='none')
+        axes[i].set_ylabel(tasks[i], size=20)
+        axes[i].set_xlabel("Samples", size=20)
+    path = f"images/{model_name}/{base_model}/{base_kernels[0]}"
     if not os.path.isdir(path):
         os.makedirs(path)
-    plt.savefig(f"{path}/{len(sample_hf)}_{len(sample_lf)}")
+    plt.savefig(f"{path}/real_{n_dims}_{num_hf_data}_{seed}_{0}")
 
 
-plot(deep_trainer)
+plot_real_data(deep_trainer, X_test)
+
+

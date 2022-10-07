@@ -6,13 +6,11 @@ import tensorflow as tf
 import numpy as np
 from gpflow.base import TensorLike
 
-from kernels.neural_network_kernel import NeuralNetKernel
-
-from .model_trainer import ModelTrainer
+from models.model_trainer import ModelTrainer
 
 
 class MultiFidelityDeepGPTrainer(ModelTrainer):
-    VALID_KERNEL_NAMES = ['RBF', 'NeuralNetwork']
+    VALID_KERNEL_NAMES = ['RBF', 'NeuralNetwork', 'Matern12', 'Matern32', 'Matern52', 'ArcCosine']
 
     def __init__(self, data: TensorLike, num_outputs: int, optimizer_name: str):
         """
@@ -47,18 +45,18 @@ class MultiFidelityDeepGPTrainer(ModelTrainer):
         self.likelihoods = []
         self.model_names = []
 
-    def construct_model(self, model_names, base_kernel, likelihood_name):
+    def construct_model(self, model_names, base_kernels, likelihood_name):
         """
         Constructs a list of kernels and likelihoods to use for the models.
         :param model_names: A list of names for the models; i.e. which models to use
-        :param base_kernel: The base kernel to use; i.e. RBF
-        :param likelihood_name: The likelihood to use; i.e. Gaussian
+        :param base_kernels: A list of base kernels to use; e.g. RBF
+        :param likelihood_name: The likelihood to use; e.g. Gaussian
         :return: None
         """
         assert len(model_names) == self.num_layers
 
-        deep_kernels = self.get_deep_kernel(base_kernel)
-        self.kernels = [self.get_kernel(base_kernel)] + deep_kernels
+        deep_kernels = self.get_deep_kernel(base_kernels)
+        self.kernels = [self.get_multioutput_kernel(base_kernels[0])] + deep_kernels
 
         likelihood = gpf.likelihoods.SwitchedLikelihood(
             [self.get_likelihood(likelihood_name) for _ in range(self.num_outputs)])
@@ -78,46 +76,41 @@ class MultiFidelityDeepGPTrainer(ModelTrainer):
                                    data=(self.Xs[i], self.Ys[i]))
             print(f"Training Model {i + 1}...")
             self.train_model(model=model)
-            print(f"Done training model {i + 1}!")
             self.trained_models.append(model)
             if i < self.num_layers - 1:
                 mu, _ = model.predict_f(self.Xs[i + 1])
                 self.Xs[i + 1] = tf.concat((self.Xs[i + 1], mu), axis=1)
 
-    def predict(self, X_test):
+    def predict(self, X_test, fidelity=None):
         """
         Predicts the mean and variance of a deep model.
+        :param fidelity: The fidelity of the prediction; default is the highest fidelity
         :param X_test: The test points
         :return: The mean and variance of the highest fidelity
         """
-        mu = tf.zeros(X_test.shape)
-        var = tf.zeros((X_test.shape[0], X_test.shape[0]))
-        for i in range(self.num_layers):
+        if fidelity is None or fidelity > self.num_layers:
+            fidelity = self.num_layers
+        mu = tf.zeros((X_test.shape[0], 1), dtype=tf.float64)
+        var = tf.zeros((X_test.shape[0], 1), dtype=tf.float64)
+        for i in range(fidelity):
             mu, var = self.trained_models[i].predict_f(X_test)
             X_test = tf.concat((X_test[:, :-1], mu), axis=1) if i > 0 else tf.concat((X_test, mu), axis=1)
         return mu, var
 
-    def get_deep_kernel(self, kernel_name: str) -> List[gpf.kernels.Kernel]:
+    def get_deep_kernel(self, kernel_names: str) -> List[gpf.kernels.Kernel]:
         """
         Gets a kernel for any GP deeper than the first layer.
         :param kernel_name: The name of the kernel.
         :return: A list of kernels, one for each layer past the first
         """
         kernels = []
+        range_dim = list(range(self.num_dim - 1))
         for i in range(self.num_layers - 1):
             coreg = gpf.kernels.Coregion(output_dim=self.num_outputs, rank=self.num_dim, active_dims=[self.num_dim])
             coreg.W = np.random.rand(self.num_outputs, self.num_dim)
-            if kernel_name == 'RBF':
-                kernels.append(
-                    (gpf.kernels.RBF(active_dims=[self.num_dim + 1]) * gpf.kernels.RBF(active_dims=list(range(self.num_layers - 1)))
-                     + gpf.kernels.RBF(active_dims=list(range(self.num_layers - 1)))) * coreg)
-            elif kernel_name == 'NeuralNetwork':
-                kernels.append((NeuralNetKernel(base_kernel=gpf.kernels.RBF(), active_dims=[self.num_dim + 1])
-                                * NeuralNetKernel(base_kernel=gpf.kernels.RBF(), active_dims=list(range(self.num_layers - 1)))
-                                + NeuralNetKernel(base_kernel=gpf.kernels.RBF(),
-                                                  active_dims=list(range(self.num_layers - 1))))
-                               * coreg)
-            else:
-                raise Exception(f"Please make sure all kernels are valid. "
-                                f"{kernel_name} is not one of {self.VALID_KERNEL_NAMES}.")
+            kernels.append((self.get_kernel(kernel_names[0], active_dims=[self.num_dim + 1]) *
+                           (self.get_kernel(kernel_names[1], active_dims=range_dim)
+                            + self.get_kernel(kernel_names[2], active_dims=range_dim)
+                            + self.get_kernel(kernel_names[3], active_dims=range_dim))
+                           + self.get_kernel(kernel_names[0], active_dims=range_dim)) * coreg)
         return kernels

@@ -8,15 +8,16 @@ from keras.layers import Dense
 
 class NeuralNetKernel(gpf.kernels.Kernel):
 
-    def __init__(self, base_kernel, active_dims=None):
+    def __init__(self, base_kernel, num_dims, active_dims=None):
         super().__init__(active_dims=active_dims)
         self.base_kernel = base_kernel
         self.nn = Sequential(name="neural_network")
-        self.nn.add(Dense(32, activation='relu', dtype=tf.float64))
-        self.nn.add(Dense(16, activation='relu', dtype=tf.float64))
-        self.nn.add(Dense(8, activation='relu', dtype=tf.float64))
-        self.nn.add(Dense(16, activation='relu', dtype=tf.float64))
-        self.nn.add(Dense(32, activation='relu', dtype=tf.float64))
+        # self.nn.add(Dense(32, activation='relu', dtype=tf.float64))
+        # self.nn.add(Dense(16, activation='relu', dtype=tf.float64))
+        # self.nn.add(Dense(8, activation='relu', dtype=tf.float64))
+        # self.nn.add(Dense(16, activation='relu', dtype=tf.float64))
+        # self.nn.add(Dense(32, activation='relu', dtype=tf.float64))
+        self.nn.add(Dense(num_dims, activation='relu', dtype=tf.float64))
 
     def K(self, X: TensorType, X2: TensorType=None) -> tf.Tensor:
         transform_X = self.nn(X)
