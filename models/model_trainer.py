@@ -16,7 +16,7 @@ class ModelTrainer:
     MAXITER = 10000
 
     VALID_MODEL_NAMES = ['multi-task-gp', 'VGP', 'GPR', 'GPMC', 'difference', 'DeepVGP']
-    VALID_OPTIMIZERS = ['scipy']
+    VALID_OPTIMIZERS = ['scipy', 'adam']
     VALID_KERNEL_NAMES = ['RBF', 'Matern12', 'Matern32', 'Matern52', 'ArcCosine', 'Coregion', 'White', 'NeuralNetwork']
     VALID_LIKELIHOOD_NAMES = ['Gaussian', 'Exponential', 'StudentT', 'Gamma', 'Beta']
 
@@ -122,7 +122,7 @@ class ModelTrainer:
                                     variables=model.trainable_variables,
                                     options=dict(disp=disp),
                                     method="L-BFGS-B")
-            tf.print("Done training models!")
+            tf.print("Done training model!")
         else:
             tf_optimization_step = tf.function(self.optimization_step)
             for epoch in range(self.MAXITER):
@@ -130,7 +130,7 @@ class ModelTrainer:
                 epoch_id = epoch + 1
                 if epoch_id % (self.MAXITER // 100) == 0:
                     tf.print(f"Epoch {epoch_id}: Loss (train) {loss}")
-            tf.print("Done training models!")
+            tf.print("Done training model!")
 
     def optimization_step(self):
         with tf.GradientTape(watch_accessed_variables=False) as tape:

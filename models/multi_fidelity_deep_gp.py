@@ -77,9 +77,9 @@ class MultiFidelityDeepGPTrainer(ModelTrainer):
             print(f"Training Model {i + 1}...")
             self.train_model(model=model)
             self.trained_models.append(model)
-            if i < self.num_layers - 1:
-                mu, _ = model.predict_f(self.Xs[i + 1])
-                self.Xs[i + 1] = tf.concat((self.Xs[i + 1], mu), axis=1)
+            for j in range(i + 1, self.num_layers):
+                mu, _ = model.predict_f(self.Xs[j])
+                self.Xs[j] = tf.concat((self.Xs[j], mu), axis=1)
 
     def predict(self, X_test, fidelity=None):
         """
