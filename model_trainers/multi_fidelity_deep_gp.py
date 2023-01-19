@@ -1,12 +1,12 @@
 import copy
-from typing import List, Tuple, Union
+from typing import List
 
 import gpflow as gpf
 import tensorflow as tf
 import numpy as np
 from gpflow.base import TensorLike
 
-from models.model_trainer import ModelTrainer
+from model_trainers.model_trainer import ModelTrainer
 
 
 class MultiFidelityDeepGPTrainer(ModelTrainer):

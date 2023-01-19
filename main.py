@@ -1,5 +1,4 @@
-from models.model_trainer import ModelTrainer
-from models.multi_fidelity_deep_gp import MultiFidelityDeepGPTrainer as DeepTrainer
+from model_trainers.multi_fidelity_deep_gp import MultiFidelityDeepGPTrainer as DeepTrainer
 from preprocessing.preprocess_imsrg_data import IMSRGPreprocessor
 from visualization.plotter import Plotter
 
@@ -30,7 +29,7 @@ def preprocess_data(df, split_string):
 file_path = "data/new_samples_emax_10_m0nu.csv"
 num_train_data = 20  # the number of data to train the highest level on
 max_fidelity = 6  # modify this to add more fidelity layers. Note that it's one based
-num_outputs = 3  # must change this if you change the number of tasks!
+num_outputs = 4  # must change this if you change the number of tasks!
 num_x_cols = 17  # how many x columns there are in the dataframe
 num_pca_dims = None # how many pca dims to compress to; leave None for full resolution
 # tasks is a dictionary: the key is the fidelity (higher number => higher fidelity)

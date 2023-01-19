@@ -4,10 +4,10 @@ import gpflow as gpf
 import numpy as np
 import tensorflow as tf
 
-from .deep_vgp import DeepVGP
-from .multi_task_gp import MultiTaskGP
-from .difference_model import DiffModel
-from .multi_fidelity_gp import MultiFidelityGP
+from models.deep_vgp import DeepVGP
+from models.multi_task_gp import MultiTaskGP
+from models.difference_model import DiffModel
+from models.multi_fidelity_gp import MultiFidelityGP
 
 from kernels.neural_network_kernel import NeuralNetKernel
 
