@@ -26,12 +26,12 @@ def preprocess_data(df, split_string):
     return final_df
 
 
-file_path = "data/new_samples_emax_10_m0nu.csv"
-num_train_data = 20  # the number of data to train the highest level on
+file_path = "data/65_samples.csv"
+num_train_data = 30  # the number of data to train the highest level on
 max_fidelity = 6  # modify this to add more fidelity layers. Note that it's one based
 num_outputs = 4  # must change this if you change the number of tasks!
 num_x_cols = 17  # how many x columns there are in the dataframe
-num_pca_dims = None # how many pca dims to compress to; leave None for full resolution
+num_pca_dims = None  # how many pca dims to compress to; leave None for full resolution
 # tasks is a dictionary: the key is the fidelity (higher number => higher fidelity)
 #                        and the value is a list of columns associated with that fidelity
 tasks = {
@@ -85,22 +85,30 @@ plotter = Plotter(
     X_test=X_test,
     Y_test=Y_test,
     Y_train=y_train_df,
-    tasks=hf_tasks
+    tasks=hf_tasks,
+    preprocessor=preprocessor
 )
 
 train_inds, test_inds = preprocessor.get_indices()
-path = f"images/new_samples/{model_name}/{base_model}/{base_kernels[0]}"
+path = f"images/{model_name}/{base_model}/{base_kernels[0]}/normalized"
 if not os.path.isdir(path):
     os.makedirs(path)
 
-plotter.plot(
-    num_data_points=y_train_df.shape[0] + Y_test.shape[0],
-    train_indices=train_inds,
-    test_indices=test_inds,
-    path_to_save=f"{path}/fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}"
+# plotter.plot(
+#     num_data_points=y_train_df.shape[0] + Y_test.shape[0],
+#     train_indices=train_inds,
+#     test_indices=test_inds,
+#     path_to_save=f"{path}/fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}"
+# )
+
+plotter.plot_prediction_vs_imsrg_data(
+    path_to_save=f"{path}/train_imsrg_small_fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}",
+    min_size=-0.5,
+    max_size=4
 )
 
 plotter.plot_prediction_vs_imsrg_data(
-    ntasks=4,
-    path_to_save=f"{path}/imsrg_fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}"
+    path_to_save=f"{path}/train_imsrg_large_fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}",
+    min_size=-25,
+    max_size=15
 )

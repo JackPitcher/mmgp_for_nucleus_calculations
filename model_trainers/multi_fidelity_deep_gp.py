@@ -94,7 +94,7 @@ class MultiFidelityDeepGPTrainer(ModelTrainer):
         var = tf.zeros((X_test.shape[0], 1), dtype=tf.float64)
         for i in range(fidelity):
             mu, var = self.trained_models[i].predict_f(X_test)
-            X_test = tf.concat((X_test[:, :-1], mu), axis=1) if i > 0 else tf.concat((X_test, mu), axis=1)
+            X_test = tf.concat((X_test, mu), axis=1)
         return mu, var
 
     def get_deep_kernel(self, kernel_names: str) -> List[gpf.kernels.Kernel]:

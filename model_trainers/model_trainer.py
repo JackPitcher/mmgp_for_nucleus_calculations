@@ -104,6 +104,20 @@ class ModelTrainer:
             return gpf.models.GPMC(data, kernel=kernel, likelihood=likelihood, num_latent_gps=1)
         if model_name == 'difference':
             return DiffModel(data, kernel=kernel, likelihood=likelihood, num_outputs=self.num_outputs)
+        if model_name == 'DeepGP':
+            X = data[0]
+            num_inducing = 1
+            inducing_variable = gpf.inducing_variables.InducingPoints(
+                np.linspace(X.min(), X.max(), num_inducing).reshape(-1, 1)
+            )
+            gp_layer = gpflux.layers.GPLayer(
+                kernel, inducing_variable, num_data=X.shape[0], num_latent_gps=self.num_outputs
+            )
+            likelihood_layer = gpflux.layers.LikelihoodLayer(gpf.likelihoods.Gaussian())
+            dgp = gpflux.models.DeepGP([gp_layer], likelihood_layer)
+            model = dgp.as_training_model()
+            model.compile(tf.optimizers.Adam(0.01))
+            return model
         raise Exception(f"Please enter a valid models name: one of {self.VALID_MODEL_NAMES}.")
 
     def get_optimizer(self, optimizer_name):
