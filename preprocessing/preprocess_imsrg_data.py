@@ -19,6 +19,7 @@ class IMSRGPreprocessor:
     tasks: Dict[str, List[str]]
     seed: int = 0
     num_pca_dims: Union[int, None] = None
+    train_with_lo_fi_testing_data: bool = True
 
     def __post_init__(self):
         """
@@ -38,7 +39,7 @@ class IMSRGPreprocessor:
         self.train_indices = indices
         self.test_indices = test_indices
 
-        x = df.iloc[:, 1:self.num_x_cols + 1]
+        x = df.iloc[:, 0:self.num_x_cols]
         x_train = x.iloc[indices, :]
         x_test = x.iloc[test_indices, :]
 
@@ -70,22 +71,34 @@ class IMSRGPreprocessor:
         #         y_train = pd.DataFrame(y_train, columns=y_cols)
         self.y_train_as_df = y_train
 
-        self.X_train = np.vstack(
-            [np.hstack((x_train, np.ones((x_train.shape[0], 1)) * i, np.ones((x_train.shape[0], 1)) * j))
-             if j < self.max_fidelity - 1 else
-             np.hstack((x_train, np.ones((x_train.shape[0], 1)) * i, np.ones((x_train.shape[0], 1)) * j))
-             for j in range(self.max_fidelity) for i in range(self.num_outputs)]
-        )
+        if self.train_with_lo_fi_testing_data:
+            self.X_train = np.vstack(
+                [np.hstack((x, np.ones((x.shape[0], 1)) * i, np.ones((x.shape[0], 1)) * j))
+                 if j < self.max_fidelity - 1 else
+                 np.hstack((x_train, np.ones((x_train.shape[0], 1)) * i, np.ones((x_train.shape[0], 1)) * j))
+                 for j in range(self.max_fidelity) for i in range(self.num_outputs)]
+            )
 
-        self.Y_train = np.vstack([
-            np.hstack(
-                (np.reshape(np.array(y_train[self.tasks[str(j)][i]]), (y_train.shape[0], 1)), np.ones((y_train.shape[0], 1)) * i,
-                 np.ones((y_train.shape[0], 1)) * j)) if j < self.max_fidelity - 1 else
-            np.hstack((np.reshape(np.array(y_train[self.tasks[str(j)][i]]), (y_train.shape[0], 1)),
-                       np.ones((y_train.shape[0], 1)) * i,
-                       np.ones((y_train.shape[0], 1)) * j))
-            for j in range(self.max_fidelity) for i in range(self.num_outputs)
-        ])
+            self.Y_train = np.vstack([
+                np.hstack(
+                    (np.reshape(np.array(y[self.tasks[str(j)][i]]), (y.shape[0], 1)), np.ones((y.shape[0], 1)) * i,
+                     np.ones((y.shape[0], 1)) * j)) if j < self.max_fidelity - 1 else
+                np.hstack((np.reshape(np.array(y_train[self.tasks[str(j)][i]]), (y_train.shape[0], 1)),
+                           np.ones((y_train.shape[0], 1)) * i,
+                           np.ones((y_train.shape[0], 1)) * j))
+                for j in range(self.max_fidelity) for i in range(self.num_outputs)
+            ])
+        else:
+            self.X_train = np.vstack(
+                [np.hstack((x_train, np.ones((x_train.shape[0], 1)) * i, np.ones((x_train.shape[0], 1)) * j))
+                 for j in range(self.max_fidelity) for i in range(self.num_outputs)]
+            )
+            self.Y_train = np.vstack([
+                np.hstack((np.reshape(np.array(y_train[self.tasks[str(j)][i]]), (y_train.shape[0], 1)),
+                           np.ones((y_train.shape[0], 1)) * i,
+                           np.ones((y_train.shape[0], 1)) * j))
+                for j in range(self.max_fidelity) for i in range(self.num_outputs)
+            ])
 
         self.X_test = np.vstack([
             np.hstack((x_test, np.ones((x_test.shape[0], 1)) * i)) for i in range(self.num_outputs)
