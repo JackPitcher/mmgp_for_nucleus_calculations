@@ -60,7 +60,7 @@ X_test, Y_test = preprocessor.get_testing_data()
 
 model_name = 'DGP'
 base_model = 'VGP'
-base_kernels = ['ArcCosine', 'ArcCosine', 'Linear', 'RBF']
+base_kernels = ['ArcCosine', 'Linear', 'RBF', 'RBF']
 likelihood_name = 'Gaussian'
 
 deep_trainer = DeepTrainer(
@@ -107,8 +107,8 @@ plotter.plot_prediction_vs_imsrg_data(
     max_size=4
 )
 
-plotter.plot_prediction_vs_imsrg_data(
-    path_to_save=f"{path}/train_imsrg_large_fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}",
-    min_size=-25,
-    max_size=15
-)
+# plotter.plot_prediction_vs_imsrg_data(
+#     path_to_save=f"{path}/train_imsrg_large_fidelity_{max_fidelity}_dims_{num_pca_dims}_data_{num_train_data}_seed_{seed}_tasks_{hf_tasks}",
+#     min_size=-25,
+#     max_size=15
+# )

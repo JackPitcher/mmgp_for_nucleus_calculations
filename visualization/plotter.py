@@ -46,19 +46,24 @@ class Plotter:
         mean, var = self.trainer.predict(self.X_test)
         mean = np.reshape(mean, (mean.shape[0] // ntasks, ntasks), "F")
         var = np.reshape(var, (var.shape[0] // ntasks, ntasks), "F")
-        mean = mean[:, 0] * self.y_var["M0nu"] + self.y_mean["M0nu"]
-        std = 2 * np.sqrt(var[:, 0])
-        f, _ = plt.subplots(1, 1, figsize=(12, 10))
-        plt.scatter(self.Y_train["M0nu"], self.Y_train["M0nu"], c='r', label="Training data", zorder=0)
-        # plt.scatter(Y_test["M0nu"], mean[:, 0], c='b')
-        plt.errorbar(self.Y_test["M0nu"], mean, yerr=std, linestyle='none', marker='o', color='b',
-                     label='Prediction', zorder=1)
-        plt.plot([min_size - 1, max_size + 1], [min_size - 1, max_size + 1], c='k', linestyle=':')
-        plt.ylabel(r'$M^{0\nu}$ (MM-DGP)', size=20)
-        plt.xlabel(r'$M^{0\nu}$ (VS-IMSRG)', size=20)
-        plt.xlim(min_size, max_size)
-        plt.ylim(min_size, max_size)
-        plt.legend(prop={'size': 14})
+        nrows = ntasks // 2 if ntasks > 1 else 1
+        f, axes = plt.subplots(nrows, ncols=ntasks // nrows, figsize=(18, 4))
+
+        for i, ax in enumerate(axes.flatten()):
+            task = self.tasks[i]
+            mu = mean[:, i] * self.y_var[task] + self.y_mean[task]
+            std = 2 * np.sqrt(var[:, i]) * self.y_var[task]
+
+            ax.scatter(self.Y_train[task], self.Y_train[task], c='r', label="Training data", zorder=0)
+            ax.errorbar(self.Y_test[task], mu, yerr=std, linestyle='none', marker='o', color='b',
+                         label='Prediction', zorder=1)
+            ax.plot([min_size - 1, max_size + 1], [min_size - 1, max_size + 1], c='k', linestyle=':')
+            ax.set_ylabel(f'{task} (MM-DGP)')
+            ax.set_xlabel(f'{task} (VS-IMSRG)')
+            ax.set_xlim(min_size, max_size)
+            ax.set_ylim(min_size, max_size)
+            ax.legend(prop={'size': 4})
+
         plt.savefig(path_to_save)
         print(f"Plot saved to {path_to_save}")
 
